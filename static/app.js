@@ -43,6 +43,8 @@
       renameDirFailed: "Rename failed: ",
       copyDirPrompt: "Copy directory to:",
       copyDirFailed: "Copy failed: ",
+      conflictWarning:
+        "This page was modified in another session. Overwrite with your changes?",
       deleteConfirm: " — delete this page?",
       loading: "Loading...",
       noHistory: "No history",
@@ -100,6 +102,8 @@
       renameDirFailed: "リネームに失敗しました: ",
       copyDirPrompt: "ディレクトリのコピー先:",
       copyDirFailed: "コピーに失敗しました: ",
+      conflictWarning:
+        "このページは別のセッションで変更されました。上書きしますか？",
       deleteConfirm: " を削除しますか？",
       loading: "読み込み中...",
       noHistory: "履歴がありません",
@@ -246,8 +250,18 @@
   function getContent() {
     return api(`/api/content?path=${encodeURIComponent(filePath)}`);
   }
-  function saveContent(content) {
-    return apiPost("/api/content", { path: filePath, content });
+  function saveContent(content, lastModified) {
+    const body = { path: filePath, content };
+    if (lastModified) body.last_modified = lastModified;
+    return apiPost("/api/content", body);
+  }
+  async function saveWithConflictCheck(content, lastModified) {
+    const res = await saveContent(content, lastModified);
+    if (res.conflict) {
+      if (!confirm(t("conflictWarning"))) return false;
+      return await saveContent(content);
+    }
+    return res;
   }
   function backupFile() {
     return apiPost("/api/backup", { filepath: filePath });
@@ -388,6 +402,7 @@
     const res = await getContent();
     if (!res.content && res.content !== "") return;
     const fullMd = res.content;
+    const sectionLastMod = res.last_modified || null;
     const sections = splitSections(fullMd);
     const headingText = getHeadingText(heading);
     const sectionIndex = sections.findIndex(
@@ -575,7 +590,8 @@
         lines: newSectionMd.split("\n"),
       });
       const newFullMd = newSections.map((s) => s.lines.join("\n")).join("\n");
-      await saveContent(newFullMd);
+      const result = await saveWithConflictCheck(newFullMd, sectionLastMod);
+      if (result === false) return;
       window.__editingMode = false;
       clearDraft(headingText);
       window.removeEventListener("beforeunload", beforeUnloadHandler);
@@ -620,6 +636,7 @@
 
     let fullEditDirty = false;
     let fullPreviewTimer = null;
+    let fullEditLastMod = null;
     const fullEditBeforeUnload = (e) => {
       if (fullEditDirty) {
         saveDraft("__full__", editTextarea.value);
@@ -659,6 +676,7 @@
         .forEach((el) => closeSectionEdit(el));
       const res = await getContent();
       const serverContent = res.content || "";
+      fullEditLastMod = res.last_modified || null;
       const draft = loadDraft("__full__");
       if (draft && draft !== serverContent) {
         if (confirm(t("draftFound"))) {
@@ -732,7 +750,11 @@
 
     document.getElementById("btn-save").addEventListener("click", async () => {
       await backupFile();
-      await saveContent(editTextarea.value);
+      const result = await saveWithConflictCheck(
+        editTextarea.value,
+        fullEditLastMod,
+      );
+      if (result === false) return;
       fullEditDirty = false;
       window.__editingMode = false;
       window.removeEventListener("beforeunload", fullEditBeforeUnload);
@@ -763,6 +785,13 @@
 
     const isDirIndex = filePath.endsWith("/index.md");
     const dirPath = isDirIndex ? filePath.replace(/\/index\.md$/, "") : "";
+    const isRootIndex = filePath === "index.md";
+
+    // Hide Rename/Delete for root index page
+    if (isRootIndex) {
+      document.getElementById("btn-rename").style.display = "none";
+      document.getElementById("btn-delete").style.display = "none";
+    }
 
     document
       .getElementById("btn-rename")
@@ -2000,6 +2029,7 @@
       cb.addEventListener("change", async () => {
         const res = await getContent();
         if (!res.content && res.content !== "") return;
+        const cbLastMod = res.last_modified || null;
         let md = res.content;
         let cbIndex = 0;
         md = md.replace(
@@ -2015,7 +2045,7 @@
           },
         );
         await backupFile();
-        await saveContent(md);
+        await saveContent(md, cbLastMod);
       });
     });
   }

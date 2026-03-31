@@ -736,13 +736,18 @@ func getContentHandler(w http.ResponseWriter, r *http.Request) {
 		jsonResp(w, 404, map[string]string{"error": "file not found"})
 		return
 	}
-	jsonResp(w, 200, map[string]string{"content": string(data)})
+	var lastMod int64
+	if info, err := os.Stat(fullPath); err == nil {
+		lastMod = info.ModTime().Unix()
+	}
+	jsonResp(w, 200, map[string]any{"content": string(data), "last_modified": lastMod})
 }
 
 func saveContentHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+		Path         string `json:"path"`
+		Content      string `json:"content"`
+		LastModified *int64 `json:"last_modified,omitempty"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		jsonResp(w, 400, map[string]string{"error": "invalid request body"})
@@ -755,6 +760,15 @@ func saveContentHandler(w http.ResponseWriter, r *http.Request) {
 	fileMu.Lock()
 	defer fileMu.Unlock()
 	fullPath := filepath.Join(docsDir, req.Path)
+	// Conflict detection: if client sends last_modified, compare with file mtime
+	if req.LastModified != nil {
+		if info, err := os.Stat(fullPath); err == nil {
+			if info.ModTime().Unix() != *req.LastModified {
+				jsonResp(w, 409, map[string]any{"error": "conflict", "conflict": true})
+				return
+			}
+		}
+	}
 	if err := os.WriteFile(fullPath, []byte(req.Content), 0644); err != nil {
 		jsonResp(w, 500, map[string]string{"error": err.Error()})
 		return
