@@ -1,0 +1,11 @@
+gomdshelf
+*.exe
+dist/
+docs/
+backups/
+.git/
+.github/
+README*.md
+CHANGELOG.md
+LICENSE
+Makefile

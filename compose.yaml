@@ -1,0 +1,13 @@
+services:
+  gomdshelf:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docs:/docs/src
+      - ./backups:/backups
+    environment:
+      - SITE_NAME=My Docs
+      # - GOMDSHELF_AUTH=user:password
+      # - GOMDSHELF_LANG=en
+    restart: unless-stopped

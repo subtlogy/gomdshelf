@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="{{.T.Lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.PageTitle}}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%237aaed5' width='32' height='32' rx='6'/><path d='M6 7L6 25Q16 20 26 25L26 7Q16 12 6 7Z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/><path d='M16 10L16 23' stroke='white' stroke-width='1.2'/></svg>">
+  <script>
+    (function(){
+      document.documentElement.setAttribute('data-loading','');
+      if(history.scrollRestoration)history.scrollRestoration='manual';
+      var d=localStorage.getItem('darkMode');var dk=d==='true'||(d===null&&matchMedia('(prefers-color-scheme:dark)').matches);if(dk)document.documentElement.classList.add('dark');
+      var t=localStorage.getItem('themeColor');if(t)document.documentElement.setAttribute('data-theme',t);
+      var c={blue:'%237aaed5',green:'%2381c784',red:'%23ef9a9a',yellow:'%23ffcc80'};var cd={blue:'%23456a8f',green:'%23438a47',red:'%23a33030',yellow:'%23b06010'};var fc=(dk?cd:c)[t||'blue']||c.blue;var el=document.querySelector('link[rel="icon"]');if(el)el.href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='"+fc+"' width='32' height='32' rx='6'/><path d='M6 7L6 25Q16 20 26 25L26 7Q16 12 6 7Z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/><path d='M16 10L16 23' stroke='white' stroke-width='1.2'/></svg>";
+      try{var col=JSON.parse(localStorage.getItem('gomdshelf-collapsed'))||{};var css='';for(var k in col){if(col[k])css+='.nav-item[data-key="'+k+'"]>.nav-list{display:none}';}if(css){var s=document.createElement('style');s.id='early-collapse';s.textContent=css;document.head.appendChild(s);}}catch(e){}
+    })();
+  </script>
+  <style>
+    [data-loading] body{opacity:0}
+    @keyframes _reveal{to{opacity:1}}
+    [data-loading] body{animation:_reveal 0s .4s forwards}
+  </style>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="header-title" id="header-title">{{.SiteName}}</a>
+      <div class="header-spacer"></div>
+      {{if .FilePath}}
+      <div class="header-toolbar">
+        <button class="toolbar-btn" id="btn-edit" title="{{.T.EditTooltip}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit</button>
+        <div class="toolbar-more-wrap">
+          <button class="toolbar-btn" id="btn-more" title="{{.T.MoreTooltip}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+          <div class="dropdown" id="more-dropdown">
+            <div class="dropdown-item" id="btn-rename">Rename</div>
+            <div class="dropdown-item" id="btn-delete">Delete</div>
+          </div>
+        </div>
+        <div class="toolbar-more-wrap">
+          <button class="toolbar-btn" id="btn-history" title="{{.T.HistoryTooltip}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {{.T.HistoryLabel}}</button>
+          <div id="history-panel" class="history-panel"></div>
+        </div>
+        <button class="toolbar-btn" id="btn-new" title="{{.T.NewTooltip}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> New</button>
+      </div>
+      {{end}}
+      <div class="header-search">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="{{.T.Search}}" autocomplete="off">
+        <div id="search-results"></div>
+      </div>
+      <button class="toolbar-btn dark-toggle" id="dark-toggle" title="{{.T.DarkModeTooltip}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      <div class="theme-picker-wrap">
+        <button class="theme-picker-btn" id="theme-picker-btn" title="{{.T.ThemeTooltip}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.2 0-1.1.9-2 2-2h2.4c3 0 5.6-2.5 5.6-5.5C23 5.6 18 2 12 2z"/><circle cx="7.5" cy="11" r="1.5" fill="white"/><circle cx="10" cy="7" r="1.5" fill="white"/><circle cx="15" cy="7" r="1.5" fill="white"/><circle cx="18" cy="11" r="1.5" fill="white"/></svg></button>
+        <div class="theme-picker-dropdown" id="theme-picker-dropdown">
+          <div class="theme-color-option" data-theme="blue" style="background:#4a6fa5;" title="Blue"></div>
+          <div class="theme-color-option" data-theme="green" style="background:#43a047;" title="Green"></div>
+          <div class="theme-color-option" data-theme="red" style="background:#d32f2f;" title="Red"></div>
+          <div class="theme-color-option" data-theme="yellow" style="background:#f57f17;" title="Yellow"></div>
+        </div>
+      </div>
+      <button class="toolbar-btn lang-toggle" id="lang-toggle" title="English/Japanese"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav class="sidebar sidebar-left">
+      <div class="sidebar-inner">
+        <div class="nav-title"><a href="/">{{.SiteName}}</a> <button class="sidebar-edit-btn" id="sidebar-edit-btn" title="{{.T.NavEditTooltip}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button></div>
+        {{template "navItems" .Nav}}
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="page-meta">
+        {{if .Breadcrumbs}}<nav class="breadcrumbs">{{range $i, $b := .Breadcrumbs}}{{if $i}} &gt; {{end}}<a href="{{$b.Path}}">{{$b.Title}}</a>{{end}}</nav>{{end}}
+        {{if .LastModified}}<span class="last-modified">{{.T.LastModified}} {{.LastModified}}</span>{{end}}
+      </div>
+      <div id="full-edit-area" style="display:none;">
+        <div class="edit-buttons" id="full-edit-buttons">
+          <button class="btn btn-save" id="btn-save">Save</button>
+          <button class="btn btn-cancel" id="btn-cancel">Cancel</button>
+        </div>
+        <div class="full-edit-row">
+          <textarea id="full-edit-textarea"></textarea>
+          <div id="full-edit-preview" class="preview md-typeset"></div>
+        </div>
+      </div>
+      <article class="md-typeset" id="article-body">
+        {{.Content}}
+      </article>
+    </main>
+
+    <nav class="sidebar sidebar-right">
+      <div class="sidebar-inner">
+        <div class="toc-title">{{.T.TOCTitle}}</div>
+        <ul class="toc-list" id="toc-list">
+          {{range .TOC}}
+          <li style="padding-left: {{multiply (minus .Level 1) 12}}px">
+            <a href="#{{.ID}}">{{.Title}}</a>
+          </li>
+          {{end}}
+        </ul>
+      </div>
+    </nav>
+    <script>
+      (function(){try{var s=JSON.parse(sessionStorage.getItem('gomdshelf-toc-scroll'));if(s&&s.path===location.pathname){var el=document.querySelector('.sidebar-right');if(el)el.scrollTop=s.y;}}catch(e){}})();
+    </script>
+  </div>
+
+  <script>
+    window.__filePath = "{{.FilePath}}";
+    window.__pagePath = "{{.PagePath}}";
+    window.__siteName = "{{.SiteName}}";
+    window.__lang = "{{.T.Lang}}";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release/build/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release/build/highlight.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
+{{define "navItems"}}
+<ul class="nav-list">
+  {{range .}}
+  <li class="nav-item{{if .IsDir}} nav-dir{{end}}" data-key="{{.Key}}">
+    {{if .IsDir}}
+      {{if .Path}}<a href="/{{.Path}}/" class="nav-link nav-dir-title">{{.Title}}</a>{{else}}<span class="nav-dir-title">{{.Title}}</span>{{end}}
+      {{if .Children}}{{template "navItems" .Children}}{{end}}
+    {{else}}
+      <a href="/{{.Path}}" class="nav-link">{{.Title}}</a>
+    {{end}}
+  </li>
+  {{end}}
+</ul>
+{{end}}

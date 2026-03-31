@@ -1,0 +1,5 @@
+gomdshelf
+*.exe
+dist/
+docs/
+backups/
