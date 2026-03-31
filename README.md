@@ -2,6 +2,8 @@
 
 A lightweight, self-hosted documentation server built with Go. Single binary, Markdown-based, real-time preview, dark mode, and a built-in editor — no database required.
 
+![gomdshelf screenshot](.github/images/screenshot.png)
+
 [日本語 README](README.ja.md)
 
 ## Features
