@@ -34,6 +34,9 @@
       renameFailed: "Rename failed: ",
       deleteFailed: "Delete failed: ",
       createFailed: "Create failed: ",
+      copyPrompt: "Copy destination path:",
+      copySuffix: " copy",
+      copyFailed: "Copy failed: ",
       deleteConfirm: " — delete this page?",
       loading: "Loading...",
       noHistory: "No history",
@@ -82,6 +85,9 @@
       renameFailed: "リネームに失敗しました: ",
       deleteFailed: "削除に失敗しました: ",
       createFailed: "作成に失敗しました: ",
+      copyPrompt: "コピー先のパス:",
+      copySuffix: "のコピー",
+      copyFailed: "コピーに失敗しました: ",
       deleteConfirm: " を削除しますか？",
       loading: "読み込み中...",
       noHistory: "履歴がありません",
@@ -775,6 +781,22 @@
         }
       });
 
+    document.getElementById("btn-copy").addEventListener("click", async () => {
+      const currentPath = filePath.replace(/\.md$/, "");
+      const defaultDest = currentPath + t("copySuffix");
+      const dest = prompt(t("copyPrompt"), defaultDest);
+      if (!dest) return;
+      const res = await apiPost("/api/copy", {
+        src_path: filePath,
+        dest_path: dest,
+      });
+      if (res.success) {
+        location.href = "/" + res.page_path;
+      } else {
+        alert(t("copyFailed") + (res.error || ""));
+      }
+    });
+
     /* ── New page ── */
     document.getElementById("btn-new").addEventListener("click", async () => {
       const currentDir = pagePath.includes("/")
@@ -800,77 +822,89 @@
           historyPanel.style.display = "none";
           return;
         }
-        historyPanel.innerHTML = t("loading");
+        historyPanel.innerHTML =
+          '<div style="padding:12px;color:#888;">' + t("loading") + "</div>";
         historyPanel.style.display = "block";
-        const data = await listBackups();
-        if (!data.backups || data.backups.length === 0) {
-          historyPanel.innerHTML =
-            '<div style="padding:8px;">' + t("noHistory") + "</div>";
-          return;
-        }
-        historyPanel.innerHTML = "";
-        data.backups.forEach((b) => {
-          const row = document.createElement("div");
-          row.className = "history-row";
-          row.innerHTML = `<span class="datetime">${b.datetime}</span>`;
-          const mkBtn = (text, cls, fn) => {
-            const btn = document.createElement("button");
-            btn.className = "btn " + cls;
-            btn.textContent = text;
-            btn.style.fontSize = "11px";
-            btn.style.padding = "2px 8px";
-            btn.addEventListener("click", fn);
-            return btn;
-          };
-          row.appendChild(
-            mkBtn(t("preview"), "btn-edit", async () => {
-              const bdata = await getBackup(b.timestamp);
-              const current = await getContent();
-              const html = buildDiffHtml(
-                bdata.content || "",
-                current.content || "",
-                b.datetime,
-              );
-              const win = window.open("", "_blank");
-              win.document.write(html);
-              win.document.close();
-            }),
-          );
-          row.appendChild(
-            mkBtn(t("restore"), "btn-save", async () => {
-              if (!confirm(b.datetime + t("restoreConfirm"))) return;
-              const res = await restoreBackup(b.timestamp);
-              if (res.success) {
-                alert(t("restored"));
-                location.reload();
-              } else alert(t("restoreFailed"));
-            }),
-          );
-          row.appendChild(
-            mkBtn(t("delete"), "btn-cancel", async () => {
-              if (!confirm(b.datetime + t("deleteHistoryConfirm"))) return;
-              const res = await deleteBackup(b.timestamp);
-              if (res.success) row.remove();
-              else alert(t("deleteHistoryFailed"));
-            }),
-          );
-          historyPanel.appendChild(row);
-        });
-        const delAllRow = document.createElement("div");
-        delAllRow.style.cssText = "margin-top:8px;text-align:right;";
-        const delAllBtn = document.createElement("button");
-        delAllBtn.className = "btn btn-cancel";
-        delAllBtn.textContent = t("deleteAll");
-        delAllBtn.style.fontSize = "11px";
-        delAllBtn.addEventListener("click", async () => {
-          if (!confirm(t("deleteAllConfirm"))) return;
-          const res = await deleteAllBackups();
-          if (res.success)
+        try {
+          const data = await listBackups();
+          if (!data.backups || data.backups.length === 0) {
             historyPanel.innerHTML =
-              '<div style="padding:8px;">' + t("noHistory") + "</div>";
-        });
-        delAllRow.appendChild(delAllBtn);
-        historyPanel.appendChild(delAllRow);
+              '<div style="padding:12px;color:#888;">' +
+              t("noHistory") +
+              "</div>";
+            return;
+          }
+          historyPanel.innerHTML = "";
+          data.backups.forEach((b) => {
+            const row = document.createElement("div");
+            row.className = "history-row";
+            row.innerHTML = `<span class="datetime">${b.datetime}</span>`;
+            const mkBtn = (text, cls, fn) => {
+              const btn = document.createElement("button");
+              btn.className = "btn " + cls;
+              btn.textContent = text;
+              btn.style.fontSize = "11px";
+              btn.style.padding = "2px 8px";
+              btn.addEventListener("click", fn);
+              return btn;
+            };
+            row.appendChild(
+              mkBtn(t("preview"), "btn-edit", async () => {
+                const bdata = await getBackup(b.timestamp);
+                const current = await getContent();
+                const html = buildDiffHtml(
+                  bdata.content || "",
+                  current.content || "",
+                  b.datetime,
+                );
+                const win = window.open("", "_blank");
+                win.document.write(html);
+                win.document.close();
+              }),
+            );
+            row.appendChild(
+              mkBtn(t("restore"), "btn-save", async () => {
+                if (!confirm(b.datetime + t("restoreConfirm"))) return;
+                const res = await restoreBackup(b.timestamp);
+                if (res.success) {
+                  alert(t("restored"));
+                  location.reload();
+                } else alert(t("restoreFailed"));
+              }),
+            );
+            row.appendChild(
+              mkBtn(t("delete"), "btn-cancel", async () => {
+                if (!confirm(b.datetime + t("deleteHistoryConfirm"))) return;
+                const res = await deleteBackup(b.timestamp);
+                if (res.success) row.remove();
+                else alert(t("deleteHistoryFailed"));
+              }),
+            );
+            historyPanel.appendChild(row);
+          });
+          const delAllRow = document.createElement("div");
+          delAllRow.style.cssText = "margin-top:8px;text-align:right;";
+          const delAllBtn = document.createElement("button");
+          delAllBtn.className = "btn btn-cancel";
+          delAllBtn.textContent = t("deleteAll");
+          delAllBtn.style.fontSize = "11px";
+          delAllBtn.addEventListener("click", async () => {
+            if (!confirm(t("deleteAllConfirm"))) return;
+            const res = await deleteAllBackups();
+            if (res.success)
+              historyPanel.innerHTML =
+                '<div style="padding:12px;color:#888;">' +
+                t("noHistory") +
+                "</div>";
+          });
+          delAllRow.appendChild(delAllBtn);
+          historyPanel.appendChild(delAllRow);
+        } catch (err) {
+          historyPanel.innerHTML =
+            '<div style="padding:12px;color:#888;">' +
+            t("noHistory") +
+            "</div>";
+        }
       });
 
     historyPanel.addEventListener("click", (e) => e.stopPropagation());
@@ -1601,11 +1635,30 @@
 
   /* ── Sidebar active page highlight ── */
   function initSidebarActive() {
-    const currentPath = location.pathname.replace(/\/$/, "");
+    const currentPath = decodeURIComponent(location.pathname).replace(
+      /\/$/,
+      "",
+    );
     document.querySelectorAll(".sidebar-left .nav-link").forEach((link) => {
-      const href = link.getAttribute("href").replace(/\/$/, "");
+      const href = decodeURIComponent(link.getAttribute("href")).replace(
+        /\/$/,
+        "",
+      );
       if (href === currentPath) {
         link.classList.add("nav-active");
+        // Ensure parent directories are expanded
+        let parent = link.closest(".nav-dir");
+        while (parent) {
+          const childUl = parent.querySelector(":scope > .nav-list");
+          if (childUl && childUl.style.display === "none") {
+            childUl.style.display = "";
+            const toggle = parent.querySelector(
+              ":scope > .nav-link .nav-collapse-toggle, :scope > .nav-dir-title .nav-collapse-toggle",
+            );
+            if (toggle) toggle.innerHTML = ICONS.chevronDown;
+          }
+          parent = parent.parentElement.closest(".nav-dir");
+        }
       }
     });
   }

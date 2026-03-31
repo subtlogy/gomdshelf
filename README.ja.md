@@ -51,11 +51,12 @@ http://localhost:8000 を開く
 
 ## 設定
 
-| 環境変数 | デフォルト | 説明 |
-|---|---|---|
-| `DOCS_DIR` | `/docs/src` | Markdown ファイルのディレクトリ |
-| `BACKUP_DIR` | `/backups` | バージョン履歴の保存先 |
-| `SITE_NAME` | `My Docs` | ヘッダーとサイドバーに表示するサイト名 |
-| `LISTEN_ADDR` | `:8000` | リッスンアドレス |
-| `GOMDSHELF_AUTH` | *(なし)* | Basic 認証の資格情報(`user:password`) |
-| `GOMDSHELF_LANG` | *(自動)* | デフォルト UI 言語(`en` または `ja`) |
+| 環境変数         | デフォルト  | 説明                                                                 |
+| ---------------- | ----------- | -------------------------------------------------------------------- |
+| `DOCS_DIR`       | `/docs/src` | Markdown ファイルのディレクトリ                                      |
+| `BACKUP_DIR`     | `/backups`  | バージョン履歴の保存先                                               |
+| `SITE_NAME`      | `My Docs`   | ヘッダーとサイドバーに表示するサイト名                               |
+| `LISTEN_ADDR`    | `:8000`     | リッスンアドレス                                                     |
+| `GOMDSHELF_AUTH` | _(なし)_    | Basic 認証の資格情報(`user:password`)                                |
+| `GOMDSHELF_LANG` | _(自動)_    | デフォルト UI 言語(`en` または `ja`)                                 |
+| `TZ`             | `UTC`       | バックアップのタイムスタンプに使用するタイムゾーン(例: `Asia/Tokyo`) |

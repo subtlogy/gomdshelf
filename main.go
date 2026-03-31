@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -81,7 +82,7 @@ var (
 	fileMu sync.Mutex
 	navMu  sync.Mutex
 
-	tsRegex       = regexp.MustCompile(`^\d{8}_\d{6}$`)
+	tsRegex       = regexp.MustCompile(`^\d+$`)
 	headingRegex  = regexp.MustCompile(`(?m)^(#{1,6})\s+(.+)`)
 	tocRegex      = regexp.MustCompile(`<h([1-6])\s+id="([^"]*)"[^>]*>(.*?)</h[1-6]>`)
 	tagRegex      = regexp.MustCompile(`<[^>]*>`)
@@ -512,8 +513,20 @@ func safeFilepath(fp string) string {
 }
 
 func getBackupDir(fp string) string {
-	safe := strings.ReplaceAll(fp, "/", "_")
-	return filepath.Join(backupDir, safe)
+	return filepath.Join(backupDir, fp)
+}
+
+// renameBackupDir moves backup history when a file is renamed or moved.
+func renameBackupDir(oldPath, newPath string) {
+	oldBdir := getBackupDir(oldPath)
+	newBdir := getBackupDir(newPath)
+	if oldBdir == newBdir {
+		return
+	}
+	if _, err := os.Stat(oldBdir); err == nil {
+		os.MkdirAll(filepath.Dir(newBdir), 0755)
+		os.Rename(oldBdir, newBdir)
+	}
 }
 
 func copyFile(src, dst string) error {
@@ -864,6 +877,8 @@ func renamePageHandler(w http.ResponseWriter, r *http.Request) {
 		jsonResp(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
+	// Move backup history
+	renameBackupDir(req.OldPath, req.NewPath)
 	// Update _nav.json order
 	oldKey := strings.TrimSuffix(req.OldPath, ".md")
 	newKey := strings.TrimSuffix(req.NewPath, ".md")
@@ -936,6 +951,43 @@ func deletePageHandler(w http.ResponseWriter, r *http.Request) {
 	// Clean up nav order
 	cleanNavOrder()
 	jsonResp(w, 200, map[string]any{"success": true})
+}
+
+func copyPageHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SrcPath  string `json:"src_path"`
+		DestPath string `json:"dest_path"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResp(w, 400, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if safeDocPath(req.SrcPath) == "" || safeDocPath(req.DestPath) == "" {
+		jsonResp(w, 400, map[string]string{"error": "invalid path"})
+		return
+	}
+	if !strings.HasSuffix(req.DestPath, ".md") {
+		req.DestPath += ".md"
+	}
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	srcFull := filepath.Join(docsDir, req.SrcPath)
+	destFull := filepath.Join(docsDir, req.DestPath)
+	if _, err := os.Stat(srcFull); err != nil {
+		jsonResp(w, 404, map[string]string{"error": "source not found"})
+		return
+	}
+	if _, err := os.Stat(destFull); err == nil {
+		jsonResp(w, 409, map[string]string{"error": "destination already exists"})
+		return
+	}
+	os.MkdirAll(filepath.Dir(destFull), 0755)
+	if err := copyFile(srcFull, destFull); err != nil {
+		jsonResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	pagePath := strings.TrimSuffix(req.DestPath, ".md")
+	jsonResp(w, 200, map[string]any{"success": true, "page_path": pagePath})
 }
 
 func cleanEmptyDir(dir string) {
@@ -1104,7 +1156,7 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	bdir := getBackupDir(fp)
 	os.MkdirAll(bdir, 0755)
-	ts := time.Now().Format("20060102_150405")
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	dst := filepath.Join(bdir, ts+".md")
 	if err := copyFile(src, dst); err != nil {
 		jsonResp(w, 500, map[string]string{"error": "backup failed: " + err.Error()})
@@ -1135,10 +1187,11 @@ func listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 	result := []backup{}
 	for _, e := range entries {
 		ts := strings.TrimSuffix(filepath.Base(e), ".md")
-		t, err := time.Parse("20060102_150405", ts)
+		unix, err := strconv.ParseInt(ts, 10, 64)
 		if err != nil {
 			continue
 		}
+		t := time.Unix(unix, 0)
 		result = append(result, backup{Timestamp: ts, Datetime: t.Format("2006-01-02 15:04:05")})
 	}
 	jsonResp(w, 200, map[string]any{"backups": result})
@@ -1182,7 +1235,7 @@ func restoreHandler(w http.ResponseWriter, r *http.Request) {
 	fileMu.Lock()
 	defer fileMu.Unlock()
 	dst := filepath.Join(docsDir, fp)
-	ts := time.Now().Format("20060102_150405")
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	copyFile(dst, filepath.Join(bdir, ts+".md")) // best-effort pre-restore backup
 	if err := copyFile(src, dst); err != nil {
 		jsonResp(w, 500, map[string]string{"error": "restore failed: " + err.Error()})
@@ -1541,6 +1594,20 @@ func navConfigHandler(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, 500, map[string]string{"error": err.Error()})
 			return
 		}
+		// Move backup history for all renamed/moved items
+		for oldKey, newKey := range keyMap {
+			// File backup: oldKey.md -> newKey.md
+			renameBackupDir(oldKey+".md", newKey+".md")
+			// Directory backup: rename parent dir in backups
+			oldBkDir := filepath.Join(backupDir, oldKey)
+			newBkDir := filepath.Join(backupDir, newKey)
+			if oldBkDir != newBkDir {
+				if _, err := os.Stat(oldBkDir); err == nil {
+					os.MkdirAll(filepath.Dir(newBkDir), 0755)
+					os.Rename(oldBkDir, newBkDir)
+				}
+			}
+		}
 		jsonResp(w, 200, map[string]any{"success": true, "renames": keyMap})
 	default:
 		jsonResp(w, 405, map[string]string{"error": "method not allowed"})
@@ -1587,7 +1654,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	os.MkdirAll(imgDir, 0755)
 
 	// Generate unique filename
-	ts := time.Now().Format("20060102_150405")
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	safeName := safeNameRegex.ReplaceAllString(header.Filename, "_")
 	filename := ts + "_" + safeName
 	dstPath := filepath.Join(imgDir, filename)
@@ -1664,6 +1731,7 @@ func main() {
 	mux.HandleFunc("/api/new", methodGuard(http.MethodPost, newPageHandler))
 	mux.HandleFunc("/api/rename", methodGuard(http.MethodPost, renamePageHandler))
 	mux.HandleFunc("/api/delete", methodGuard(http.MethodPost, deletePageHandler))
+	mux.HandleFunc("/api/copy", methodGuard(http.MethodPost, copyPageHandler))
 	mux.HandleFunc("/api/search", methodGuard(http.MethodGet, searchHandler))
 	mux.HandleFunc("/api/render", methodGuard(http.MethodPost, renderHandler))
 	mux.HandleFunc("/api/upload", methodGuard(http.MethodPost, uploadHandler))

@@ -53,14 +53,15 @@ Open http://localhost:8000
 
 ## Configuration
 
-| Environment Variable | Default | Description |
-|---|---|---|
-| `DOCS_DIR` | `/docs/src` | Markdown files directory |
-| `BACKUP_DIR` | `/backups` | Version history storage |
-| `SITE_NAME` | `My Docs` | Site name in header and sidebar |
-| `LISTEN_ADDR` | `:8000` | Listen address |
-| `GOMDSHELF_AUTH` | *(none)* | Basic auth credentials (`user:password`) |
-| `GOMDSHELF_LANG` | *(auto)* | Default UI language (`en` or `ja`) |
+| Environment Variable | Default     | Description                                        |
+| -------------------- | ----------- | -------------------------------------------------- |
+| `DOCS_DIR`           | `/docs/src` | Markdown files directory                           |
+| `BACKUP_DIR`         | `/backups`  | Version history storage                            |
+| `SITE_NAME`          | `My Docs`   | Site name in header and sidebar                    |
+| `LISTEN_ADDR`        | `:8000`     | Listen address                                     |
+| `GOMDSHELF_AUTH`     | _(none)_    | Basic auth credentials (`user:password`)           |
+| `GOMDSHELF_LANG`     | _(auto)_    | Default UI language (`en` or `ja`)                 |
+| `TZ`                 | `UTC`       | Timezone for backup timestamps (e.g. `Asia/Tokyo`) |
 
 ## Directory Structure
 
@@ -83,10 +84,10 @@ docs/
 
 ```markdown
 !!! note
-    This is a note.
+This is a note.
 
 !!! warning "Custom Title"
-    This is a warning with a custom title.
+This is a warning with a custom title.
 ```
 
 Supported types: `note`, `tip`, `warning`, `danger`, `info`, `example`, `success`, `question`, `bug`
@@ -108,6 +109,7 @@ graph LR
 Inline: $E = mc^2$
 
 Display:
+
 $$
 \int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
 $$
@@ -115,34 +117,33 @@ $$
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| `/` | Focus search |
-| `Ctrl+S` | Save while editing |
-| `Tab` | Indent in editor |
+| Key         | Action             |
+| ----------- | ------------------ |
+| `/`         | Focus search       |
+| `Ctrl+S`    | Save while editing |
+| `Tab`       | Indent in editor   |
 | `Shift+Tab` | Unindent in editor |
-| `Esc` | Close search |
+| `Esc`       | Close search       |
 
 ## API
 
 All API endpoints are JSON-based.
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/content?path=` | Get page markdown |
-| POST | `/api/content` | Save page content |
-| POST | `/api/new` | Create new page |
-| POST | `/api/rename` | Rename page |
-| POST | `/api/delete` | Delete page |
-| GET | `/api/search?q=` | Full-text search |
-| POST | `/api/render` | Render markdown to HTML |
-| POST | `/api/upload` | Upload image |
-| GET/POST | `/api/nav` | Get/update navigation config |
-| GET | `/api/lang?lang=` | Set UI language |
-| POST | `/api/backup` | Create backup |
-| GET | `/api/backups?filepath=` | List backups |
-| GET | `/api/backups/content` | Get backup content |
-| POST | `/api/restore` | Restore from backup |
-| POST | `/api/backups/delete` | Delete a backup |
-| POST | `/api/backups/delete-all` | Delete all backups |
-
+| Method   | Path                      | Description                  |
+| -------- | ------------------------- | ---------------------------- |
+| GET      | `/api/content?path=`      | Get page markdown            |
+| POST     | `/api/content`            | Save page content            |
+| POST     | `/api/new`                | Create new page              |
+| POST     | `/api/rename`             | Rename page                  |
+| POST     | `/api/delete`             | Delete page                  |
+| GET      | `/api/search?q=`          | Full-text search             |
+| POST     | `/api/render`             | Render markdown to HTML      |
+| POST     | `/api/upload`             | Upload image                 |
+| GET/POST | `/api/nav`                | Get/update navigation config |
+| GET      | `/api/lang?lang=`         | Set UI language              |
+| POST     | `/api/backup`             | Create backup                |
+| GET      | `/api/backups?filepath=`  | List backups                 |
+| GET      | `/api/backups/content`    | Get backup content           |
+| POST     | `/api/restore`            | Restore from backup          |
+| POST     | `/api/backups/delete`     | Delete a backup              |
+| POST     | `/api/backups/delete-all` | Delete all backups           |
