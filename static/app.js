@@ -1749,32 +1749,16 @@
   }
 
   /* ── Dark mode ── */
-  function initDarkMode() {
-    const toggle = document.getElementById("dark-toggle");
-    if (!toggle) return;
-    const root = document.documentElement;
-    const moonSvg =
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-    const sunSvg =
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
-    if (root.classList.contains("dark")) {
-      document.body.classList.add("dark");
-      toggle.innerHTML = sunSvg;
-    }
-    toggle.addEventListener("click", () => {
-      const isDark = root.classList.toggle("dark");
-      document.body.classList.toggle("dark", isDark);
-      toggle.innerHTML = isDark ? sunSvg : moonSvg;
-      localStorage.setItem("darkMode", isDark);
-      window.dispatchEvent(new Event("themechange"));
-    });
-  }
+  function initSettings() {
+    const btn = document.getElementById("settings-btn");
+    const panel = document.getElementById("settings-panel");
+    if (!btn || !panel) return;
 
-  /* ── Theme color picker ── */
-  function initThemePicker() {
-    const btn = document.getElementById("theme-picker-btn");
-    const dropdown = document.getElementById("theme-picker-dropdown");
-    if (!btn || !dropdown) return;
+    const root = document.documentElement;
+    const darkSeg = document.getElementById("msetting-dark-seg");
+    const colors = panel.querySelectorAll(".msetting-color");
+    const langBtns = panel.querySelectorAll(".msetting-lang-btn");
+
     const faviconColors = {
       blue: "%237aaed5",
       green: "%2381c784",
@@ -1787,10 +1771,12 @@
       red: "%23a33030",
       yellow: "%23b06010",
     };
+
     function updateFavicon(theme) {
-      const isDark = document.documentElement.classList.contains("dark");
-      const colors = isDark ? faviconColorsDark : faviconColors;
-      const fc = colors[theme] || colors.blue;
+      const isDark = root.classList.contains("dark");
+      const fc =
+        (isDark ? faviconColorsDark : faviconColors)[theme] ||
+        faviconColors.blue;
       const favicon = document.querySelector('link[rel="icon"]');
       if (favicon) {
         favicon.href =
@@ -1799,8 +1785,28 @@
           "' width='32' height='32' rx='6'/><path d='M6 7L6 25Q16 20 26 25L26 7Q16 12 6 7Z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/><path d='M16 10L16 23' stroke='white' stroke-width='1.2'/></svg>";
       }
     }
+
+    function getDarkMode() {
+      const v = localStorage.getItem("darkMode");
+      if (v === "light" || v === "false") return "light";
+      if (v === "dark" || v === "true") return "dark";
+      return "system";
+    }
+
+    function applyDarkMode(mode) {
+      let isDark;
+      if (mode === "dark") isDark = true;
+      else if (mode === "light") isDark = false;
+      else isDark = matchMedia("(prefers-color-scheme:dark)").matches;
+      root.classList.toggle("dark", isDark);
+      document.body.classList.toggle("dark", isDark);
+      darkSeg
+        .querySelectorAll(".msetting-seg-btn")
+        .forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+      updateFavicon(localStorage.getItem("themeColor") || "blue");
+    }
+
     function applyTheme(theme) {
-      const root = document.documentElement;
       if (theme && theme !== "blue") {
         root.setAttribute("data-theme", theme);
         document.body.setAttribute("data-theme", theme);
@@ -1809,32 +1815,60 @@
         document.body.removeAttribute("data-theme");
         theme = "blue";
       }
-      dropdown.querySelectorAll(".theme-color-option").forEach((o) => {
-        o.classList.toggle("active", o.dataset.theme === theme);
-      });
+      colors.forEach((c) =>
+        c.classList.toggle("active", c.dataset.theme === theme),
+      );
       updateFavicon(theme);
     }
-    const saved = localStorage.getItem("themeColor") || "blue";
-    applyTheme(saved);
+
+    // Init state
+    applyDarkMode(getDarkMode());
+    applyTheme(localStorage.getItem("themeColor") || "blue");
+    langBtns.forEach((b) =>
+      b.classList.toggle("active", b.dataset.lang === LANG),
+    );
+
+    // Toggle panel
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      dropdown.classList.toggle("visible");
+      panel.classList.toggle("visible");
     });
-    dropdown.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const option = e.target.closest(".theme-color-option");
-      if (!option) return;
-      const theme = option.dataset.theme;
-      localStorage.setItem("themeColor", theme);
-      applyTheme(theme);
-      dropdown.classList.remove("visible");
+    document.addEventListener("click", (e) => {
+      if (!panel.contains(e.target) && e.target !== btn)
+        panel.classList.remove("visible");
     });
-    document.addEventListener("click", () =>
-      dropdown.classList.remove("visible"),
-    );
-    window.addEventListener("themechange", () => {
-      const current = localStorage.getItem("themeColor") || "blue";
-      updateFavicon(current);
+    panel.addEventListener("click", (e) => e.stopPropagation());
+
+    // Dark mode segmented control
+    darkSeg.addEventListener("click", (e) => {
+      const segBtn = e.target.closest(".msetting-seg-btn");
+      if (!segBtn) return;
+      const mode = segBtn.dataset.mode;
+      localStorage.setItem("darkMode", mode);
+      applyDarkMode(mode);
+    });
+
+    // Listen for system preference changes
+    matchMedia("(prefers-color-scheme:dark)").addEventListener("change", () => {
+      if (getDarkMode() === "system") applyDarkMode("system");
+    });
+
+    // Theme colors
+    colors.forEach((c) => {
+      c.addEventListener("click", () => {
+        const theme = c.dataset.theme;
+        localStorage.setItem("themeColor", theme);
+        applyTheme(theme);
+      });
+    });
+
+    // Language
+    langBtns.forEach((b) => {
+      b.addEventListener("click", async () => {
+        if (b.dataset.lang === LANG) return;
+        await fetch("/api/lang?lang=" + b.dataset.lang);
+        location.reload();
+      });
     });
   }
 
@@ -1984,17 +2018,6 @@
     el.textContent += " (" + rel + ")";
   }
 
-  /* ── Language toggle ── */
-  function initLangToggle() {
-    const btn = document.getElementById("lang-toggle");
-    if (!btn) return;
-    btn.addEventListener("click", async () => {
-      const newLang = LANG === "ja" ? "en" : "ja";
-      await fetch("/api/lang?lang=" + newLang);
-      location.reload();
-    });
-  }
-
   /* ── Mobile sidebar & TOC drawers ── */
   function initMobileMenu() {
     const hamburger = document.getElementById("hamburger-btn");
@@ -2046,79 +2069,6 @@
     }
   }
 
-  /* ── Mobile settings panel ── */
-  function initMobileSettings() {
-    const btn = document.getElementById("mobile-settings-btn");
-    const panel = document.getElementById("mobile-settings-panel");
-    if (!btn || !panel) return;
-
-    const root = document.documentElement;
-    const darkToggle = document.getElementById("msetting-dark-toggle");
-    const darkLabel = document.getElementById("msetting-dark-label");
-    const langRow = document.getElementById("msetting-lang");
-    const langVal = document.getElementById("msetting-lang-val");
-    const colors = panel.querySelectorAll(".msetting-color");
-
-    // Sync initial state
-    function syncState() {
-      const isDark = root.classList.contains("dark");
-      if (darkToggle) darkToggle.classList.toggle("on", isDark);
-      const theme = localStorage.getItem("themeColor") || "blue";
-      colors.forEach((c) =>
-        c.classList.toggle("active", c.dataset.theme === theme),
-      );
-      if (langVal) langVal.textContent = LANG === "ja" ? "JA" : "EN";
-    }
-    syncState();
-
-    // Toggle panel
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      syncState();
-      panel.classList.toggle("visible");
-    });
-    document.addEventListener("click", (e) => {
-      if (!panel.contains(e.target) && e.target !== btn) {
-        panel.classList.remove("visible");
-      }
-    });
-    panel.addEventListener("click", (e) => e.stopPropagation());
-
-    // Dark mode
-    const darkRow = document.getElementById("msetting-dark");
-    if (darkRow) {
-      darkRow.addEventListener("click", () => {
-        const desktopToggle = document.getElementById("dark-toggle");
-        if (desktopToggle) desktopToggle.click();
-        syncState();
-      });
-    }
-
-    // Theme colors
-    colors.forEach((c) => {
-      c.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const theme = c.dataset.theme;
-        localStorage.setItem("themeColor", theme);
-        // Trigger desktop theme picker logic
-        const desktopOption = document.querySelector(
-          '.theme-color-option[data-theme="' + theme + '"]',
-        );
-        if (desktopOption) desktopOption.click();
-        syncState();
-      });
-    });
-
-    // Language
-    if (langRow) {
-      langRow.addEventListener("click", async () => {
-        const newLang = LANG === "ja" ? "en" : "ja";
-        await fetch("/api/lang?lang=" + newLang);
-        location.reload();
-      });
-    }
-  }
-
   /* ── Init ── */
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => e.preventDefault());
@@ -2129,21 +2079,18 @@
   initMermaid();
   initTocTracking();
   initKaTeX();
-  initDarkMode();
+  initSettings();
   initSidebarEdit();
   initSidebarActive();
   initSearchShortcut();
   initBackToTop();
-  initThemePicker();
   initSidebarCollapse();
   initExternalLinks();
   initImageLightbox();
   initHeadingLinks();
   initCheckboxes();
   initRelativeTime();
-  initLangToggle();
   initMobileMenu();
-  initMobileSettings();
 
   // Remove early-collapse style (now managed by initSidebarCollapse)
   const earlyStyle = document.getElementById("early-collapse");
