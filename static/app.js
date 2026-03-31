@@ -37,6 +37,12 @@
       copyPrompt: "Copy destination path:",
       copySuffix: " copy",
       copyFailed: "Copy failed: ",
+      deleteDirConfirm:
+        'This will permanently delete the directory "{0}" and ALL files/subdirectories inside it. Continue?',
+      renameDirPrompt: "Enter new directory path:",
+      renameDirFailed: "Rename failed: ",
+      copyDirPrompt: "Copy directory to:",
+      copyDirFailed: "Copy failed: ",
       deleteConfirm: " — delete this page?",
       loading: "Loading...",
       noHistory: "No history",
@@ -88,6 +94,12 @@
       copyPrompt: "コピー先のパス:",
       copySuffix: "のコピー",
       copyFailed: "コピーに失敗しました: ",
+      deleteDirConfirm:
+        "ディレクトリ「{0}」内のすべてのファイル・サブディレクトリが完全に削除されます。続行しますか？",
+      renameDirPrompt: "新しいディレクトリのパス:",
+      renameDirFailed: "リネームに失敗しました: ",
+      copyDirPrompt: "ディレクトリのコピー先:",
+      copyDirFailed: "コピーに失敗しました: ",
       deleteConfirm: " を削除しますか？",
       loading: "読み込み中...",
       noHistory: "履歴がありません",
@@ -749,59 +761,109 @@
     });
     document.addEventListener("click", () => (dropdown.style.display = "none"));
 
+    const isDirIndex = filePath.endsWith("/index.md");
+    const dirPath = isDirIndex ? filePath.replace(/\/index\.md$/, "") : "";
+
     document
       .getElementById("btn-rename")
       .addEventListener("click", async () => {
-        const currentName = filePath.replace(/\.md$/, "");
-        const newName = prompt(t("renamePrompt"), currentName);
-        if (!newName || newName === currentName) return;
-        const oldPath = filePath.endsWith(".md") ? filePath : filePath + ".md";
-        const newPath = newName.endsWith(".md") ? newName : newName + ".md";
-        const res = await apiPost("/api/rename", {
-          old_path: oldPath,
-          new_path: newPath,
-        });
-        if (res.success) {
-          const newPage = newName.replace(/\.md$/, "");
-          location.href = "/" + newPage;
+        if (isDirIndex) {
+          const newDir = prompt(t("renameDirPrompt"), dirPath + "/");
+          if (!newDir) return;
+          const cleaned = newDir.replace(/\/+$/, "");
+          if (!cleaned || cleaned === dirPath) return;
+          const res = await apiPost("/api/rename-dir", {
+            old_path: dirPath,
+            new_path: cleaned,
+          });
+          if (res.success) {
+            location.href = "/" + res.new_path + "/";
+          } else {
+            alert(t("renameDirFailed") + (res.error || ""));
+          }
         } else {
-          alert(t("renameFailed") + (res.error || ""));
+          const currentName = filePath.replace(/\.md$/, "");
+          const newName = prompt(t("renamePrompt"), currentName);
+          if (!newName || newName === currentName) return;
+          const oldPath = filePath.endsWith(".md")
+            ? filePath
+            : filePath + ".md";
+          const newPath = newName.endsWith(".md") ? newName : newName + ".md";
+          const res = await apiPost("/api/rename", {
+            old_path: oldPath,
+            new_path: newPath,
+          });
+          if (res.success) {
+            const newPage = newName.replace(/\.md$/, "");
+            location.href = "/" + newPage;
+          } else {
+            alert(t("renameFailed") + (res.error || ""));
+          }
         }
       });
 
     document
       .getElementById("btn-delete")
       .addEventListener("click", async () => {
-        if (!confirm(filePath + t("deleteConfirm"))) return;
-        const res = await apiPost("/api/delete", { path: filePath });
-        if (res.success) {
-          location.href = "/";
+        if (isDirIndex) {
+          if (!confirm(t("deleteDirConfirm", dirPath))) return;
+          const res = await apiPost("/api/delete-dir", { path: dirPath });
+          if (res.success) {
+            location.href = "/";
+          } else {
+            alert(t("deleteFailed") + (res.error || ""));
+          }
         } else {
-          alert(t("deleteFailed") + (res.error || ""));
+          if (!confirm(filePath + t("deleteConfirm"))) return;
+          const res = await apiPost("/api/delete", { path: filePath });
+          if (res.success) {
+            location.href = "/";
+          } else {
+            alert(t("deleteFailed") + (res.error || ""));
+          }
         }
       });
 
     document.getElementById("btn-copy").addEventListener("click", async () => {
-      const currentPath = filePath.replace(/\.md$/, "");
-      const defaultDest = currentPath + t("copySuffix");
-      const dest = prompt(t("copyPrompt"), defaultDest);
-      if (!dest) return;
-      const res = await apiPost("/api/copy", {
-        src_path: filePath,
-        dest_path: dest,
-      });
-      if (res.success) {
-        location.href = "/" + res.page_path;
+      if (isDirIndex) {
+        const defaultDest = dirPath + t("copySuffix") + "/";
+        const dest = prompt(t("copyDirPrompt"), defaultDest);
+        if (!dest) return;
+        const cleaned = dest.replace(/\/+$/, "");
+        if (!cleaned) return;
+        const res = await apiPost("/api/copy-dir", {
+          src_path: dirPath,
+          dest_path: cleaned,
+        });
+        if (res.success) {
+          location.href = "/" + res.page_path + "/";
+        } else {
+          alert(t("copyDirFailed") + (res.error || ""));
+        }
       } else {
-        alert(t("copyFailed") + (res.error || ""));
+        const currentPath = filePath.replace(/\.md$/, "");
+        const defaultDest = currentPath + t("copySuffix");
+        const dest = prompt(t("copyPrompt"), defaultDest);
+        if (!dest) return;
+        const res = await apiPost("/api/copy", {
+          src_path: filePath,
+          dest_path: dest,
+        });
+        if (res.success) {
+          location.href = "/" + res.page_path;
+        } else {
+          alert(t("copyFailed") + (res.error || ""));
+        }
       }
     });
 
     /* ── New page ── */
     document.getElementById("btn-new").addEventListener("click", async () => {
-      const currentDir = pagePath.includes("/")
-        ? pagePath.substring(0, pagePath.lastIndexOf("/") + 1)
-        : "";
+      const currentDir = isDirIndex
+        ? dirPath + "/"
+        : pagePath.includes("/")
+          ? pagePath.substring(0, pagePath.lastIndexOf("/") + 1)
+          : "";
       const name = prompt(t("newPagePrompt"), currentDir);
       if (!name) return;
       const res = await apiPost("/api/new", { path: name });

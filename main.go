@@ -948,6 +948,9 @@ func deletePageHandler(w http.ResponseWriter, r *http.Request) {
 	// Remove empty parent directory (only if it contains no .md files)
 	parentDir := filepath.Dir(fullPath)
 	cleanEmptyDir(parentDir)
+	// Remove backup history
+	bdir := getBackupDir(req.Path)
+	os.RemoveAll(bdir)
 	// Clean up nav order
 	cleanNavOrder()
 	jsonResp(w, 200, map[string]any{"success": true})
@@ -988,6 +991,155 @@ func copyPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	pagePath := strings.TrimSuffix(req.DestPath, ".md")
 	jsonResp(w, 200, map[string]any{"success": true, "page_path": pagePath})
+}
+
+func renameDirHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		OldPath string `json:"old_path"`
+		NewPath string `json:"new_path"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResp(w, 400, map[string]string{"error": "invalid request body"})
+		return
+	}
+	req.OldPath = strings.TrimSuffix(req.OldPath, "/")
+	req.NewPath = strings.TrimSuffix(req.NewPath, "/")
+	if safeDocPath(req.OldPath) == "" || safeDocPath(req.NewPath) == "" {
+		jsonResp(w, 400, map[string]string{"error": "invalid path"})
+		return
+	}
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	oldFull := filepath.Join(docsDir, req.OldPath)
+	newFull := filepath.Join(docsDir, req.NewPath)
+	info, err := os.Stat(oldFull)
+	if err != nil || !info.IsDir() {
+		jsonResp(w, 404, map[string]string{"error": "directory not found"})
+		return
+	}
+	if _, err := os.Stat(newFull); err == nil {
+		jsonResp(w, 409, map[string]string{"error": "destination already exists"})
+		return
+	}
+	os.MkdirAll(filepath.Dir(newFull), 0755)
+	if err := os.Rename(oldFull, newFull); err != nil {
+		jsonResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	// Move backup history for all files under this directory
+	oldBkDir := filepath.Join(backupDir, req.OldPath)
+	newBkDir := filepath.Join(backupDir, req.NewPath)
+	if _, err := os.Stat(oldBkDir); err == nil {
+		os.MkdirAll(filepath.Dir(newBkDir), 0755)
+		os.Rename(oldBkDir, newBkDir)
+	}
+	// Update nav config keys
+	cfg := loadNavConfig()
+	newOrder := map[string][]string{}
+	for parent, children := range cfg.Order {
+		newParent := renameKeyPrefix(parent, req.OldPath, req.NewPath)
+		var nc []string
+		for _, c := range children {
+			nc = append(nc, renameKeyPrefix(c, req.OldPath, req.NewPath))
+		}
+		newOrder[newParent] = nc
+	}
+	cfg.Order = newOrder
+	saveNavConfig(cfg)
+	cleanEmptyDir(filepath.Dir(oldFull))
+	jsonResp(w, 200, map[string]any{"success": true, "new_path": req.NewPath})
+}
+
+func renameKeyPrefix(key, oldPrefix, newPrefix string) string {
+	if key == oldPrefix {
+		return newPrefix
+	}
+	if strings.HasPrefix(key, oldPrefix+"/") {
+		return newPrefix + key[len(oldPrefix):]
+	}
+	return key
+}
+
+func deleteDirHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResp(w, 400, map[string]string{"error": "invalid request body"})
+		return
+	}
+	req.Path = strings.TrimSuffix(req.Path, "/")
+	if safeDocPath(req.Path) == "" {
+		jsonResp(w, 400, map[string]string{"error": "invalid path"})
+		return
+	}
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	fullPath := filepath.Join(docsDir, req.Path)
+	info, err := os.Stat(fullPath)
+	if err != nil || !info.IsDir() {
+		jsonResp(w, 404, map[string]string{"error": "directory not found"})
+		return
+	}
+	if err := os.RemoveAll(fullPath); err != nil {
+		jsonResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	// Remove all backups under this directory
+	os.RemoveAll(filepath.Join(backupDir, req.Path))
+	// Clean parent
+	cleanEmptyDir(filepath.Dir(fullPath))
+	cleanNavOrder()
+	jsonResp(w, 200, map[string]any{"success": true})
+}
+
+func copyDirHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SrcPath  string `json:"src_path"`
+		DestPath string `json:"dest_path"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		jsonResp(w, 400, map[string]string{"error": "invalid request body"})
+		return
+	}
+	req.SrcPath = strings.TrimSuffix(req.SrcPath, "/")
+	req.DestPath = strings.TrimSuffix(req.DestPath, "/")
+	if safeDocPath(req.SrcPath) == "" || safeDocPath(req.DestPath) == "" {
+		jsonResp(w, 400, map[string]string{"error": "invalid path"})
+		return
+	}
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	srcFull := filepath.Join(docsDir, req.SrcPath)
+	destFull := filepath.Join(docsDir, req.DestPath)
+	info, err := os.Stat(srcFull)
+	if err != nil || !info.IsDir() {
+		jsonResp(w, 404, map[string]string{"error": "source directory not found"})
+		return
+	}
+	if _, err := os.Stat(destFull); err == nil {
+		jsonResp(w, 409, map[string]string{"error": "destination already exists"})
+		return
+	}
+	if err := copyDirRecursive(srcFull, destFull); err != nil {
+		jsonResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	jsonResp(w, 200, map[string]any{"success": true, "page_path": req.DestPath})
+}
+
+func copyDirRecursive(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		return copyFile(path, target)
+	})
 }
 
 func cleanEmptyDir(dir string) {
@@ -1732,6 +1884,9 @@ func main() {
 	mux.HandleFunc("/api/rename", methodGuard(http.MethodPost, renamePageHandler))
 	mux.HandleFunc("/api/delete", methodGuard(http.MethodPost, deletePageHandler))
 	mux.HandleFunc("/api/copy", methodGuard(http.MethodPost, copyPageHandler))
+	mux.HandleFunc("/api/rename-dir", methodGuard(http.MethodPost, renameDirHandler))
+	mux.HandleFunc("/api/delete-dir", methodGuard(http.MethodPost, deleteDirHandler))
+	mux.HandleFunc("/api/copy-dir", methodGuard(http.MethodPost, copyDirHandler))
 	mux.HandleFunc("/api/search", methodGuard(http.MethodGet, searchHandler))
 	mux.HandleFunc("/api/render", methodGuard(http.MethodPost, renderHandler))
 	mux.HandleFunc("/api/upload", methodGuard(http.MethodPost, uploadHandler))
