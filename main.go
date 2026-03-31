@@ -26,11 +26,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
 	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
 )
 
 // version is set by -ldflags at build time
@@ -43,13 +43,13 @@ var staticFS embed.FS
 var templateFS embed.FS
 
 var (
-	docsDir    = getEnv("DOCS_DIR", "/docs/src")
-	backupDir  = getEnv("BACKUP_DIR", "/backups")
-	siteName   = getEnv("SITE_NAME", "My Docs")
-	listenAddr = getEnv("LISTEN_ADDR", ":8000")
-	authToken  = getEnv("GOMDSHELF_AUTH", "")     // "user:password" for basic auth
-	defaultLang = getEnv("GOMDSHELF_LANG", "")    // "ja", "en", or "" (auto-detect)
-	maxBackups = 50
+	docsDir     = getEnv("DOCS_DIR", "/docs/src")
+	backupDir   = getEnv("BACKUP_DIR", "/backups")
+	siteName    = getEnv("SITE_NAME", "My Docs")
+	listenAddr  = getEnv("LISTEN_ADDR", ":8000")
+	authToken   = getEnv("GOMDSHELF_AUTH", "") // "user:password" for basic auth
+	defaultLang = getEnv("GOMDSHELF_LANG", "") // "ja", "en", or "" (auto-detect)
+	maxBackups  = 50
 
 	// Maximum request body sizes
 	maxBodySize   int64 = 2 << 20  // 2MB for content API
@@ -78,13 +78,13 @@ var (
 	}
 
 	// File operation mutex to prevent concurrent write corruption
-	fileMu  sync.Mutex
-	navMu   sync.Mutex
+	fileMu sync.Mutex
+	navMu  sync.Mutex
 
-	tsRegex      = regexp.MustCompile(`^\d{8}_\d{6}$`)
-	headingRegex = regexp.MustCompile(`(?m)^(#{1,6})\s+(.+)`)
-	tocRegex     = regexp.MustCompile(`<h([1-6])\s+id="([^"]*)"[^>]*>(.*?)</h[1-6]>`)
-	tagRegex     = regexp.MustCompile(`<[^>]*>`)
+	tsRegex       = regexp.MustCompile(`^\d{8}_\d{6}$`)
+	headingRegex  = regexp.MustCompile(`(?m)^(#{1,6})\s+(.+)`)
+	tocRegex      = regexp.MustCompile(`<h([1-6])\s+id="([^"]*)"[^>]*>(.*?)</h[1-6]>`)
+	tagRegex      = regexp.MustCompile(`<[^>]*>`)
 	safeNameRegex = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
 	allowedImageExts = map[string]bool{
@@ -134,9 +134,9 @@ var uiStringsMap = map[string]UIStrings{
 		NewTooltip: "New page", DarkModeTooltip: "Toggle dark mode",
 		ThemeTooltip: "Change theme color", NavEditTooltip: "Edit navigation",
 		LastModified: "Last updated:", TOCTitle: "Table of contents",
-		NotFoundTitle: "Page not found",
-		NotFoundHeading: "404",
-		NotFoundMessage: "The page <code>%s</code> does not exist or has been moved.",
+		NotFoundTitle:    "Page not found",
+		NotFoundHeading:  "404",
+		NotFoundMessage:  "The page <code>%s</code> does not exist or has been moved.",
 		NotFoundLinkText: "Return to top page",
 	},
 	"ja": {
@@ -145,9 +145,9 @@ var uiStringsMap = map[string]UIStrings{
 		NewTooltip: "新規ページ", DarkModeTooltip: "ダークモード切替",
 		ThemeTooltip: "テーマカラー変更", NavEditTooltip: "ナビゲーション編集",
 		LastModified: "最終更新:", TOCTitle: "目次",
-		NotFoundTitle: "ページが見つかりません",
-		NotFoundHeading: "404",
-		NotFoundMessage: "お探しのページ <code>%s</code> は存在しないか、移動された可能性があります。",
+		NotFoundTitle:    "ページが見つかりません",
+		NotFoundHeading:  "404",
+		NotFoundMessage:  "お探しのページ <code>%s</code> は存在しないか、移動された可能性があります。",
 		NotFoundLinkText: "トップページに戻る",
 	},
 }
@@ -1040,9 +1040,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		lower := strings.ToLower(content)
 		rel, _ := filepath.Rel(docsDir, path)
 		pagePath := strings.TrimSuffix(rel, ".md")
-		if strings.HasSuffix(pagePath, "/index") {
-			pagePath = strings.TrimSuffix(pagePath, "/index")
-		}
+		pagePath = strings.TrimSuffix(pagePath, "/index")
 		lowerPath := strings.ToLower(pagePath)
 
 		contentMatch := strings.Contains(lower, query)
@@ -1362,10 +1360,11 @@ type NavSaveRequest struct {
 }
 
 func navConfigHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		cfg := loadNavConfig()
 		jsonResp(w, 200, cfg)
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 		var req NavSaveRequest
 		if err := decodeJSON(r, &req); err != nil {
 			jsonResp(w, 400, map[string]string{"error": "invalid request body"})
@@ -1543,7 +1542,7 @@ func navConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jsonResp(w, 200, map[string]any{"success": true, "renames": keyMap})
-	} else {
+	default:
 		jsonResp(w, 405, map[string]string{"error": "method not allowed"})
 	}
 }
@@ -1633,11 +1632,7 @@ func main() {
 
 	// Parse templates
 	var err error
-	funcMap := template.FuncMap{
-		"minus":    func(a, b int) int { return a - b },
-		"multiply": func(a, b int) int { return a * b },
-	}
-	tmpl, err = template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.html")
+	tmpl, err = template.New("").ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		log.Fatal("template parse error:", err)
 	}
@@ -1657,11 +1652,12 @@ func main() {
 
 	// Content API
 	mux.HandleFunc("/api/content", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			getContentHandler(w, r)
-		} else if r.Method == http.MethodPost {
+		case http.MethodPost:
 			saveContentHandler(w, r)
-		} else {
+		default:
 			jsonResp(w, 405, map[string]string{"error": "method not allowed"})
 		}
 	})
