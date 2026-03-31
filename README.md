@@ -9,10 +9,12 @@ A lightweight, self-hosted documentation server built with Go. Single binary, Ma
 - **Single binary** — embed all assets at build time, deploy anywhere
 - **Markdown** — GFM, syntax highlighting (Chroma), task lists, footnotes, KaTeX math, Mermaid diagrams, admonitions
 - **Built-in editor** — full-page and per-section editing with live preview, image drag & drop, auto-save drafts
+- **Page operations** — rename, copy, delete pages; directory-level rename/copy/delete on index pages
 - **Navigation** — drag-and-drop sidebar reordering, collapsible directories, breadcrumbs
 - **Search** — instant full-text search across all pages
-- **History** — per-page version history with diff viewer and one-click restore
-- **Themes** — 4 color themes (blue, green, red, yellow) + dark mode
+- **History** — per-page version history with diff viewer, one-click restore, preserved across renames
+- **Themes** — 4 color themes (blue, green, red, yellow), light / dark / system appearance
+- **Mobile** — responsive layout with hamburger menu, slide-in TOC drawer, unified settings panel
 - **i18n** — English and Japanese UI, auto-detected from browser language
 - **Live reload** — WebSocket-based, pages refresh on file changes
 - **Security** — path traversal protection, image magic-byte validation, optional Basic auth
@@ -33,6 +35,9 @@ services:
       - ./backups:/backups
     environment:
       - SITE_NAME=My Docs
+      # - TZ=Asia/Tokyo
+      # - GOMDSHELF_AUTH=user:password
+      # - GOMDSHELF_LANG=en
 ```
 
 ```bash
@@ -84,10 +89,10 @@ docs/
 
 ```markdown
 !!! note
-This is a note.
+    This is a note.
 
 !!! warning "Custom Title"
-This is a warning with a custom title.
+    This is a warning with a custom title.
 ```
 
 Supported types: `note`, `tip`, `warning`, `danger`, `info`, `example`, `success`, `question`, `bug`
@@ -129,21 +134,25 @@ $$
 
 All API endpoints are JSON-based.
 
-| Method   | Path                      | Description                  |
-| -------- | ------------------------- | ---------------------------- |
-| GET      | `/api/content?path=`      | Get page markdown            |
-| POST     | `/api/content`            | Save page content            |
-| POST     | `/api/new`                | Create new page              |
-| POST     | `/api/rename`             | Rename page                  |
-| POST     | `/api/delete`             | Delete page                  |
-| GET      | `/api/search?q=`          | Full-text search             |
-| POST     | `/api/render`             | Render markdown to HTML      |
-| POST     | `/api/upload`             | Upload image                 |
-| GET/POST | `/api/nav`                | Get/update navigation config |
-| GET      | `/api/lang?lang=`         | Set UI language              |
-| POST     | `/api/backup`             | Create backup                |
-| GET      | `/api/backups?filepath=`  | List backups                 |
-| GET      | `/api/backups/content`    | Get backup content           |
-| POST     | `/api/restore`            | Restore from backup          |
-| POST     | `/api/backups/delete`     | Delete a backup              |
-| POST     | `/api/backups/delete-all` | Delete all backups           |
+| Method   | Path                      | Description                   |
+| -------- | ------------------------- | ----------------------------- |
+| GET      | `/api/content?path=`      | Get page markdown             |
+| POST     | `/api/content`            | Save page content             |
+| POST     | `/api/new`                | Create new page               |
+| POST     | `/api/rename`             | Rename page                   |
+| POST     | `/api/delete`             | Delete page                   |
+| POST     | `/api/copy`               | Copy page                     |
+| POST     | `/api/rename-dir`         | Rename directory              |
+| POST     | `/api/delete-dir`         | Delete directory recursively  |
+| POST     | `/api/copy-dir`           | Copy directory recursively    |
+| GET      | `/api/search?q=`          | Full-text search              |
+| POST     | `/api/render`             | Render markdown to HTML       |
+| POST     | `/api/upload`             | Upload image                  |
+| GET/POST | `/api/nav`                | Get/update navigation config  |
+| GET      | `/api/lang?lang=`         | Set UI language               |
+| POST     | `/api/backup`             | Create backup                 |
+| GET      | `/api/backups?filepath=`  | List backups                  |
+| GET      | `/api/backups/content`    | Get backup content            |
+| POST     | `/api/restore`            | Restore from backup           |
+| POST     | `/api/backups/delete`     | Delete a backup               |
+| POST     | `/api/backups/delete-all` | Delete all backups for a page |
