@@ -944,6 +944,20 @@
   const searchResults = document.getElementById("search-results");
   let searchTimer = null;
 
+  function addSearchCloseBtn() {
+    if (searchResults.querySelector(".search-close-btn")) return;
+    const btn = document.createElement("button");
+    btn.className = "search-close-btn";
+    btn.innerHTML = "&times;";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      searchResults.style.display = "none";
+      searchInput.value = "";
+      searchInput.blur();
+    });
+    searchResults.prepend(btn);
+  }
+
   searchInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
     const q = searchInput.value.trim();
@@ -952,6 +966,7 @@
       return;
     }
     searchTimer = setTimeout(async () => {
+      const scrollY = window.scrollY;
       const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
       if (!data.results || data.results.length === 0) {
         searchResults.innerHTML =
@@ -982,7 +997,9 @@
             })
             .join("");
       }
+      addSearchCloseBtn();
       searchResults.style.display = "block";
+      window.scrollTo(0, scrollY);
     }, DEBOUNCE_SEARCH);
   });
 
@@ -1074,6 +1091,8 @@
     const siteName = window.__siteName || headerTitle.textContent;
     const h1 = document.querySelector("#article-body h1");
     if (!h1 || !headerTitle) return;
+    // Don't switch title on the top/index page
+    if (!pagePath || pagePath === "index") return;
     const parts = pagePath.split("/");
     const pageTitle =
       parts[parts.length - 1] || parts[parts.length - 2] || pagePath;
@@ -1923,6 +1942,130 @@
     });
   }
 
+  /* ── Mobile sidebar & TOC drawers ── */
+  function initMobileMenu() {
+    const hamburger = document.getElementById("hamburger-btn");
+    const sidebarLeft = document.querySelector(".sidebar-left");
+    const sidebarRight = document.querySelector(".sidebar-right");
+    const overlay = document.getElementById("sidebar-overlay");
+    const tocBtn = document.getElementById("mobile-toc-btn");
+    if (!hamburger || !overlay) return;
+
+    function closeAll() {
+      if (sidebarLeft) sidebarLeft.classList.remove("open");
+      if (sidebarRight) sidebarRight.classList.remove("open");
+      overlay.classList.remove("visible");
+    }
+
+    hamburger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = sidebarLeft && sidebarLeft.classList.contains("open");
+      closeAll();
+      if (!isOpen && sidebarLeft) {
+        sidebarLeft.classList.add("open");
+        overlay.classList.add("visible");
+      }
+    });
+
+    if (tocBtn) {
+      tocBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = sidebarRight && sidebarRight.classList.contains("open");
+        closeAll();
+        if (!isOpen && sidebarRight) {
+          sidebarRight.classList.add("open");
+          overlay.classList.add("visible");
+        }
+      });
+    }
+
+    overlay.addEventListener("click", closeAll);
+
+    if (sidebarLeft) {
+      sidebarLeft.addEventListener("click", (e) => {
+        if (e.target.closest(".nav-link")) closeAll();
+      });
+    }
+    if (sidebarRight) {
+      sidebarRight.addEventListener("click", (e) => {
+        if (e.target.closest("a")) closeAll();
+      });
+    }
+  }
+
+  /* ── Mobile settings panel ── */
+  function initMobileSettings() {
+    const btn = document.getElementById("mobile-settings-btn");
+    const panel = document.getElementById("mobile-settings-panel");
+    if (!btn || !panel) return;
+
+    const root = document.documentElement;
+    const darkToggle = document.getElementById("msetting-dark-toggle");
+    const darkLabel = document.getElementById("msetting-dark-label");
+    const langRow = document.getElementById("msetting-lang");
+    const langVal = document.getElementById("msetting-lang-val");
+    const colors = panel.querySelectorAll(".msetting-color");
+
+    // Sync initial state
+    function syncState() {
+      const isDark = root.classList.contains("dark");
+      if (darkToggle) darkToggle.classList.toggle("on", isDark);
+      const theme = localStorage.getItem("themeColor") || "blue";
+      colors.forEach((c) =>
+        c.classList.toggle("active", c.dataset.theme === theme),
+      );
+      if (langVal) langVal.textContent = LANG === "ja" ? "JA" : "EN";
+    }
+    syncState();
+
+    // Toggle panel
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      syncState();
+      panel.classList.toggle("visible");
+    });
+    document.addEventListener("click", (e) => {
+      if (!panel.contains(e.target) && e.target !== btn) {
+        panel.classList.remove("visible");
+      }
+    });
+    panel.addEventListener("click", (e) => e.stopPropagation());
+
+    // Dark mode
+    const darkRow = document.getElementById("msetting-dark");
+    if (darkRow) {
+      darkRow.addEventListener("click", () => {
+        const desktopToggle = document.getElementById("dark-toggle");
+        if (desktopToggle) desktopToggle.click();
+        syncState();
+      });
+    }
+
+    // Theme colors
+    colors.forEach((c) => {
+      c.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const theme = c.dataset.theme;
+        localStorage.setItem("themeColor", theme);
+        // Trigger desktop theme picker logic
+        const desktopOption = document.querySelector(
+          '.theme-color-option[data-theme="' + theme + '"]',
+        );
+        if (desktopOption) desktopOption.click();
+        syncState();
+      });
+    });
+
+    // Language
+    if (langRow) {
+      langRow.addEventListener("click", async () => {
+        const newLang = LANG === "ja" ? "en" : "ja";
+        await fetch("/api/lang?lang=" + newLang);
+        location.reload();
+      });
+    }
+  }
+
   /* ── Init ── */
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => e.preventDefault());
@@ -1946,6 +2089,8 @@
   initCheckboxes();
   initRelativeTime();
   initLangToggle();
+  initMobileMenu();
+  initMobileSettings();
 
   // Remove early-collapse style (now managed by initSidebarCollapse)
   const earlyStyle = document.getElementById("early-collapse");
